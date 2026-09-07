@@ -1,0 +1,77 @@
+[
+  {
+    "id": "q001",
+    "question": "What does Ribbon Fold indicate?",
+    "expected_answer": "Ribbon Fold indicates an EMA crossover.",
+    "expected_pages": [3],
+    "expected_evidence": ["Ribbon fold indicates EMA crossover"]
+  },
+  {
+    "id": "q002",
+    "question": "What is the maximum per-trade risk?",
+    "expected_answer": "The maximum per-trade risk is 5% of net account liquidity.",
+    "expected_pages": [3],
+    "expected_evidence": [
+      "My maximum per-trade risk is fixed at 5% of net account liquidity"
+    ]
+  },
+  {
+    "id": "q003",
+    "question": "What is the minimum preferred risk-to-reward ratio?",
+    "expected_answer": "No less than 1:2 is preferred.",
+    "expected_pages": [3],
+    "expected_evidence": ["no less than 1:2"]
+  },
+  {
+    "id": "q004",
+    "question": "What EMA is used as the mean or pivot?",
+    "expected_answer": "The 21 EMA is used as the mean/pivot.",
+    "expected_pages": [3],
+    "expected_evidence": ["21 EMA is used as the mean/pivot"]
+  },
+  {
+    "id": "q005",
+    "question": "What timeframes are used to confirm trend?",
+    "expected_answer": "3m, 10m, 30m, 1h, 1D, 1W, and 1M.",
+    "expected_pages": [2],
+    "expected_evidence": ["3m", "10m", "30m", "1h", "1D", "1W", "1M"]
+  },
+  {
+    "id": "q006",
+    "question": "How can I tell whether the market is bullish or bearish using the Ribbon?",
+    "expected_answer": "Bullish is above the Green-Blue Ribbon and bearish is below the Red-Orange Ribbon.",
+    "expected_pages": [3],
+    "expected_evidence": [
+      "Bullish: Above Green-Blue Ribbon",
+      "Bearish: Below Red-Orange Ribbon"
+    ]
+  },
+  {
+    "id": "q007",
+    "question": "Which moving average represents the longer-term trend?",
+    "expected_answer": "The 34 EMA is used for the longer-term trend.",
+    "expected_pages": [3],
+    "expected_evidence": ["34 EMA is used for longer-term trend"]
+  },
+  {
+    "id": "q008",
+    "question": "When should trading be avoided after the market opens?",
+    "expected_answer": "Do not trade during the opening 10 minutes.",
+    "expected_pages": [2],
+    "expected_evidence": ["I don’t trade the opening 10 minutes"]
+  },
+  {
+    "id": "q009",
+    "question": "How much of the account can be risked on lotto trades?",
+    "expected_answer": "Lotto trades have a maximum risk of 1% of net account liquidity.",
+    "expected_pages": [3],
+    "expected_evidence": ["For lottos no more than 1%"]
+  },
+  {
+    "id": "q010",
+    "question": "What should a trader do instead of chasing price?",
+    "expected_answer": "Never chase; wait for a pullback.",
+    "expected_pages": [2],
+    "expected_evidence": ["never chase", "wait for pullback"]
+  }
+]

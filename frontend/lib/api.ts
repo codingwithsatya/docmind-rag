@@ -1,0 +1,49 @@
+import type { AskResponse, ChatTurn, IngestResponse } from "./types";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
+
+export async function ingestDocument(file: File): Promise<IngestResponse> {
+  const formData = new FormData();
+
+  formData.append("file", file);
+
+  const response = await fetch(`${API_URL}/documents/ingest`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to ingest document");
+  }
+
+  return response.json();
+}
+
+export async function askDocument(
+  documentId: string,
+  question: string,
+  messages: ChatTurn[],
+): Promise<AskResponse> {
+  const history = messages.slice(-3).map((message) => ({
+    question: message.question,
+    answer: message.answer,
+  }));
+
+  const response = await fetch(`${API_URL}/ask`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      document_id: documentId,
+      question,
+      history,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to ask document");
+  }
+
+  return response.json();
+}
