@@ -21,3 +21,4 @@ out/
 # IDE
 .vscode/
 .idea/backend/.venv/
+*.tsbuildinfo
