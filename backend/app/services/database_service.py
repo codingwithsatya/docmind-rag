@@ -1,4 +1,3 @@
-from uuid import UUID
 import os
 
 import psycopg
@@ -6,21 +5,6 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
-
-
-def test_database_connection():
-    database_url = os.getenv("DATABASE_URL")
-
-    if not database_url:
-        raise ValueError("DATABASE_URL is not configured")
-
-    with psycopg.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT 1;")
-
-            result = cursor.fetchone()
-
-    return result[0]
 
 
 def get_connection():
@@ -94,20 +78,31 @@ def build_keyword_query(question: str) -> str:
     return " OR ".join(keywords)
 
 
-def create_document(
+def create_document_with_chunks(
     filename: str,
     file_hash: str,
-) -> UUID:
-    with get_connection() as connection:
+    chunks: list[dict],
+) -> tuple[dict, bool]:
+    """Create a completed document and all of its chunks atomically.
+
+    The unique file hash makes concurrent duplicate uploads wait on the
+    conflicting insert. Only the transaction that creates the document writes
+    chunks; every other transaction returns the completed existing document.
+    """
+    connection = get_connection()
+
+    try:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO documents (
                     filename,
-                    file_hash
+                    file_hash,
+                    ingestion_status
                 )
-                VALUES (%s, %s)
-                RETURNING id;
+                VALUES (%s, %s, 'processing')
+                ON CONFLICT (file_hash) DO NOTHING
+                RETURNING id, filename;
                 """,
                 (
                     filename,
@@ -115,23 +110,40 @@ def create_document(
                 ),
             )
 
-            document_id = cursor.fetchone()[0]
+            inserted_document = cursor.fetchone()
 
-        connection.commit()
+            if not inserted_document:
+                cursor.execute(
+                    """
+                    SELECT id, filename
+                    FROM documents
+                    WHERE
+                        file_hash = %s
+                        AND ingestion_status = 'completed';
+                    """,
+                    (file_hash,),
+                )
 
-    return document_id
+                existing_document = cursor.fetchone()
 
+                if not existing_document:
+                    raise RuntimeError(
+                        "A duplicate document exists but is not fully ingested"
+                    )
 
-def create_document_chunk(
-    document_id: UUID,
-    chunk_index: int,
-    page_number: int,
-    content: str,
-    embedding: list[float],
-):
-    with get_connection() as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(
+                connection.commit()
+
+                return (
+                    {
+                        "id": str(existing_document[0]),
+                        "filename": existing_document[1],
+                    },
+                    False,
+                )
+
+            document_id, stored_filename = inserted_document
+
+            cursor.executemany(
                 """
                 INSERT INTO document_chunks (
                     document_id,
@@ -142,16 +154,43 @@ def create_document_chunk(
                 )
                 VALUES (%s, %s, %s, %s, %s);
                 """,
-                (
-                    document_id,
-                    chunk_index,
-                    page_number,
-                    content,
-                    embedding,
-                ),
+                [
+                    (
+                        document_id,
+                        chunk["chunk_index"],
+                        chunk["page_number"],
+                        chunk["content"],
+                        chunk["embedding"],
+                    )
+                    for chunk in chunks
+                ],
+            )
+
+            cursor.execute(
+                """
+                UPDATE documents
+                SET
+                    ingestion_status = 'completed',
+                    completed_at = CURRENT_TIMESTAMP
+                WHERE id = %s;
+                """,
+                (document_id,),
             )
 
         connection.commit()
+
+        return (
+            {
+                "id": str(document_id),
+                "filename": stored_filename,
+            },
+            True,
+        )
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def search_similar_chunks(
@@ -205,7 +244,9 @@ def get_document_by_hash(file_hash: str):
                 """
                 SELECT id, filename
                 FROM documents
-                WHERE file_hash = %s
+                WHERE
+                    file_hash = %s
+                    AND ingestion_status = 'completed'
                 LIMIT 1;
                 """,
                 (file_hash,),

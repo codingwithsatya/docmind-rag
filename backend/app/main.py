@@ -14,9 +14,8 @@ from app.services.pdf_service import (
 from app.services.retrieval_service import rank_chunks
 from app.services.database_service import (
     test_database_connection,
-    create_document,
     get_document_by_hash,
-    create_document_chunk,
+    create_document_with_chunks,
     search_similar_chunks,
 )
 from app.services.rag_service import generate_answer
@@ -125,6 +124,22 @@ async def ingest_document(
 
     file_bytes = await file.read()
 
+    # Extract text page-by-page
+    pages = extract_pdf_text(file_bytes)
+
+    # IMPORTANT:
+    # Keep page metadata while creating chunks
+    chunks = chunk_pages(pages)
+
+    if not chunks:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "The PDF contains no extractable text. "
+                "Scanned PDFs require OCR before upload."
+            ),
+        )
+
     # Generate SHA-256 hash for duplicate detection
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
@@ -137,33 +152,26 @@ async def ingest_document(
             "status": "already_exists",
         }
 
-    # Extract text page-by-page
-    pages = extract_pdf_text(file_bytes)
-
-    # IMPORTANT:
-    # Keep page metadata while creating chunks
-    chunks = chunk_pages(pages)
-
-    document_id = create_document(
-        filename=file.filename,
-        file_hash=file_hash,
-    )
-
     for chunk in chunks:
-        embedding = create_embedding(
+        chunk["embedding"] = create_embedding(
             chunk["content"]
         )
 
-        create_document_chunk(
-            document_id=document_id,
-            chunk_index=chunk["chunk_index"],
-            page_number=chunk["page_number"],
-            content=chunk["content"],
-            embedding=embedding,
-        )
+    document, created = create_document_with_chunks(
+        filename=file.filename,
+        file_hash=file_hash,
+        chunks=chunks,
+    )
+
+    if not created:
+        return {
+            "document_id": document["id"],
+            "filename": document["filename"],
+            "status": "already_exists",
+        }
 
     return {
-        "document_id": str(document_id),
+        "document_id": document["id"],
         "filename": file.filename,
         "chunk_count": len(chunks),
         "status": "ingested",
