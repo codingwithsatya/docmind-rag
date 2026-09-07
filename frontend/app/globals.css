@@ -147,6 +147,26 @@ body {
   font-size: 11px;
 }
 
+.inline-error {
+  border: 1px solid #efc7ca;
+  border-radius: 10px;
+  background: #fff3f4;
+  color: #a12b35;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.inline-error--sidebar {
+  margin-top: 10px;
+  padding: 9px 11px;
+}
+
+.inline-error--question {
+  max-width: 820px;
+  margin: 0 auto 8px;
+  padding: 9px 12px;
+}
+
 /* =========================
    DOCUMENT LIST
 ========================= */

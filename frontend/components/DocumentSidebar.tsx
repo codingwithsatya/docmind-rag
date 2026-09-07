@@ -7,13 +7,17 @@ import UploadDropzone from "./UploadDropzone";
 type DocumentSidebarProps = {
   document: IngestResponse | null;
   uploading: boolean;
+  error: string | null;
   onUpload: (file: File) => void;
+  onUploadError: (message: string) => void;
 };
 
 export default function DocumentSidebar({
   document,
   uploading,
+  error,
   onUpload,
+  onUploadError,
 }: DocumentSidebarProps) {
   return (
     <div className="document-sidebar">
@@ -27,7 +31,12 @@ export default function DocumentSidebar({
         </div>
       </div>
 
-      <UploadDropzone uploading={uploading} onUpload={onUpload} />
+      <UploadDropzone
+        uploading={uploading}
+        error={error}
+        onUpload={onUpload}
+        onUploadError={onUploadError}
+      />
 
       <div className="sidebar-section">
         <div className="sidebar-section-title">Documents</div>

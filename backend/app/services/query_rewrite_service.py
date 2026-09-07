@@ -1,7 +1,5 @@
 from openai import OpenAI
 
-client = OpenAI()
-
 
 def rewrite_query(
     question: str,
@@ -9,6 +7,8 @@ def rewrite_query(
 ) -> str:
     if not conversation_history:
         return question
+
+    client = OpenAI()
 
     history_parts = []
 

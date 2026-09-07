@@ -23,17 +23,27 @@ export default function Home() {
 
   const [debugMode, setDebugMode] = useState(false);
 
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const [questionError, setQuestionError] = useState<string | null>(null);
+
   async function handleUpload(file: File) {
     try {
       setUploading(true);
+      setUploadError(null);
 
       const result = await ingestDocument(file);
 
       setDocument(result);
       setMessages([]);
       setQuestion("");
+      setUploadError(null);
     } catch (error) {
-      console.error(error);
+      setUploadError(
+        error instanceof Error
+          ? error.message
+          : "Could not upload the PDF. Please try again.",
+      );
     } finally {
       setUploading(false);
     }
@@ -48,6 +58,7 @@ export default function Home() {
 
     try {
       setAsking(true);
+      setQuestionError(null);
       setQuestion("");
 
       const result = await askDocument(
@@ -65,9 +76,14 @@ export default function Home() {
       };
 
       setMessages((current) => [...current, newMessage]);
+      setQuestionError(null);
     } catch (error) {
-      console.error(error);
       setQuestion(currentQuestion);
+      setQuestionError(
+        error instanceof Error
+          ? error.message
+          : "Could not answer the question. Please try again.",
+      );
     } finally {
       setAsking(false);
     }
@@ -79,7 +95,9 @@ export default function Home() {
         <DocumentSidebar
           document={document}
           uploading={uploading}
+          error={uploadError}
           onUpload={handleUpload}
+          onUploadError={setUploadError}
         />
       }
     >
@@ -90,6 +108,7 @@ export default function Home() {
         disabled={!document}
         documentName={document?.filename}
         debugMode={debugMode}
+        error={questionError}
         onDebugToggle={() => setDebugMode((current) => !current)}
         onQuestionChange={setQuestion}
         onAsk={handleAsk}

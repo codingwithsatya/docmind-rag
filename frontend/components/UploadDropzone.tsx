@@ -4,12 +4,16 @@ import { useRef, useState } from "react";
 
 type UploadDropzoneProps = {
   uploading: boolean;
+  error: string | null;
   onUpload: (file: File) => void;
+  onUploadError: (message: string) => void;
 };
 
 export default function UploadDropzone({
   uploading,
+  error,
   onUpload,
+  onUploadError,
 }: UploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -21,7 +25,7 @@ export default function UploadDropzone({
     }
 
     if (file.type !== "application/pdf") {
-      alert("Please upload a PDF file.");
+      onUploadError("Please upload a PDF file.");
 
       return;
     }
@@ -30,37 +34,54 @@ export default function UploadDropzone({
   }
 
   return (
-    <div
-      className={`upload-dropzone ${dragging ? "upload-dropzone--active" : ""}`}
-      onDragOver={(event) => {
-        event.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(event) => {
-        event.preventDefault();
+    <>
+      <div
+        className={`upload-dropzone ${dragging ? "upload-dropzone--active" : ""}`}
+        aria-busy={uploading}
+        aria-describedby={error ? "upload-error" : undefined}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
 
-        setDragging(false);
+          setDragging(false);
 
-        handleFile(event.dataTransfer.files?.[0]);
-      }}
-      onClick={() => inputRef.current?.click()}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="application/pdf"
-        hidden
-        onChange={(event) => handleFile(event.target.files?.[0])}
-      />
+          handleFile(event.dataTransfer.files?.[0]);
+        }}
+        onClick={() => inputRef.current?.click()}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf"
+          hidden
+          onChange={(event) => {
+            handleFile(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
 
-      <div className="upload-icon">↑</div>
+        <div className="upload-icon">↑</div>
 
-      <div className="upload-title">
-        {uploading ? "Indexing document..." : "Upload PDF"}
+        <div className="upload-title" role="status" aria-live="polite">
+          {uploading ? "Indexing document..." : "Upload PDF"}
+        </div>
+
+        <div className="upload-subtitle">Drag & drop or click to browse</div>
       </div>
 
-      <div className="upload-subtitle">Drag & drop or click to browse</div>
-    </div>
+      {error && (
+        <div
+          id="upload-error"
+          className="inline-error inline-error--sidebar"
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+    </>
   );
 }

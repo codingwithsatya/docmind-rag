@@ -26,7 +26,7 @@ export default function QuestionInput({
   }
 
   return (
-    <div className="question-composer">
+    <div className="question-composer" aria-busy={asking}>
       <div className="composer-icon">✦</div>
 
       <textarea
@@ -50,7 +50,7 @@ export default function QuestionInput({
           className="send-button"
           disabled={disabled || asking || !value.trim()}
           onClick={onSubmit}
-          aria-label="Ask DocMind"
+          aria-label={asking ? "DocMind is answering" : "Ask DocMind"}
         >
           {asking ? <span className="thinking-dot">•••</span> : "↑"}
         </button>

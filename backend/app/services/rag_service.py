@@ -1,13 +1,13 @@
 from openai import OpenAI
 
-client = OpenAI()
-
 
 def generate_answer(
     question: str,
     retrieved_chunks: list[dict],
     resolved_question: str | None = None,
 ):
+    client = OpenAI()
+
     context_parts = []
 
     for chunk in retrieved_chunks:

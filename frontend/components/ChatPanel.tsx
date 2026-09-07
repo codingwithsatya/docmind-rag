@@ -12,6 +12,7 @@ type ChatPanelProps = {
   disabled: boolean;
   documentName?: string;
   debugMode: boolean;
+  error: string | null;
   onDebugToggle: () => void;
   onQuestionChange: (value: string) => void;
   onAsk: () => void;
@@ -31,6 +32,7 @@ export default function ChatPanel({
   disabled,
   documentName,
   debugMode,
+  error,
   onDebugToggle,
   onQuestionChange,
   onAsk,
@@ -136,7 +138,7 @@ export default function ChatPanel({
             ))}
 
             {asking && (
-              <div className="assistant-thinking">
+              <div className="assistant-thinking" role="status" aria-live="polite">
                 <span />
                 <span />
                 <span />
@@ -148,6 +150,12 @@ export default function ChatPanel({
       </div>
 
       <div className="chat-input-wrap">
+        {error && (
+          <div className="inline-error inline-error--question" role="alert">
+            {error}
+          </div>
+        )}
+
         <QuestionInput
           value={question}
           asking={asking}

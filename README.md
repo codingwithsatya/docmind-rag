@@ -42,6 +42,10 @@ Set real values in `.env`; never commit that file. The API runs at
 `http://127.0.0.1:8000`. Check the database with
 `GET http://127.0.0.1:8000/health/database`.
 
+PDF uploads default to a maximum of 10 MiB and 100 pages. Override
+`MAX_PDF_UPLOAD_BYTES` or `MAX_PDF_PAGES` in `.env` with positive integers when
+different limits are appropriate for your deployment.
+
 ## Frontend
 
 In another terminal:
@@ -80,6 +84,12 @@ The printed path should end in `backend/.venv/bin/python`. Using
 `python -m pytest` ensures pytest runs with that same interpreter. Pytest is
 configured in `backend/pytest.ini` to collect only `backend/tests`; the manual
 evaluation programs under `backend/evals` are intentionally excluded.
+
+The frontend currently has no component-test runner or DOM test environment.
+Adding frontend unit tests cleanly would require choosing and configuring a
+runner such as Vitest, React Testing Library, and jsdom. For now, frontend error
+handling is checked by ESLint and TypeScript, while the API error contracts are
+covered by backend tests.
 
 ## Ingestion guarantees
 

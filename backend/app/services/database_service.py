@@ -7,11 +7,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+class DatabaseConfigurationError(RuntimeError):
+    pass
+
+
+class IncompleteDocumentError(RuntimeError):
+    pass
+
+
 def get_connection():
     database_url = os.getenv("DATABASE_URL")
 
     if not database_url:
-        raise ValueError("DATABASE_URL is not configured")
+        raise DatabaseConfigurationError("DATABASE_URL is not configured")
 
     return psycopg.connect(database_url)
 
@@ -127,7 +135,7 @@ def create_document_with_chunks(
                 existing_document = cursor.fetchone()
 
                 if not existing_document:
-                    raise RuntimeError(
+                    raise IncompleteDocumentError(
                         "A duplicate document exists but is not fully ingested"
                     )
 
@@ -260,6 +268,31 @@ def get_document_by_hash(file_hash: str):
     return {
         "id": str(row[0]),
         "filename": row[1],
+    }
+
+
+def get_document(document_id):
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, filename, ingestion_status
+                FROM documents
+                WHERE id = %s
+                LIMIT 1;
+                """,
+                (document_id,),
+            )
+
+            row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    return {
+        "id": str(row[0]),
+        "filename": row[1],
+        "ingestion_status": row[2],
     }
 
 

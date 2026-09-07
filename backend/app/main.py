@@ -1,6 +1,12 @@
 import hashlib
+import os
+from uuid import UUID
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+import psycopg
+from fastapi import FastAPI, UploadFile, File, HTTPException, Query
+from fastapi.responses import JSONResponse
+from openai import OpenAIError
+from pydantic import BaseModel, Field, field_validator
 
 from app.services.embedding_service import create_embedding
 from app.services.chunking_service import (
@@ -8,20 +14,46 @@ from app.services.chunking_service import (
     chunk_text,
 )
 from app.services.pdf_service import (
-    extract_pdf_info,
     extract_pdf_text,
+    has_pdf_signature,
 )
 from app.services.retrieval_service import rank_chunks
 from app.services.database_service import (
     test_database_connection,
+    get_document,
     get_document_by_hash,
     create_document_with_chunks,
     search_similar_chunks,
+    DatabaseConfigurationError,
+    IncompleteDocumentError,
 )
 from app.services.rag_service import generate_answer
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
 from app.services.query_rewrite_service import rewrite_query
+
+
+def positive_int_setting(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+
+    if raw_value is None:
+        return default
+
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise RuntimeError(f"{name} must be a positive integer") from error
+
+    if value <= 0:
+        raise RuntimeError(f"{name} must be a positive integer")
+
+    return value
+
+
+MAX_PDF_UPLOAD_BYTES = positive_int_setting(
+    "MAX_PDF_UPLOAD_BYTES",
+    10 * 1024 * 1024,
+)
+MAX_PDF_PAGES = positive_int_setting("MAX_PDF_PAGES", 100)
 
 app = FastAPI(
     title="DocMind RAG API",
@@ -39,17 +71,139 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(DatabaseConfigurationError)
+@app.exception_handler(psycopg.Error)
+async def database_error_handler(request, error):
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": (
+                "The document service is temporarily unavailable. "
+                "Please try again."
+            )
+        },
+    )
+
+
+@app.exception_handler(OpenAIError)
+async def openai_error_handler(request, error):
+    return JSONResponse(
+        status_code=502,
+        content={
+            "detail": (
+                "The AI service is temporarily unavailable. "
+                "Please try again."
+            )
+        },
+    )
+
+
+@app.exception_handler(IncompleteDocumentError)
+async def incomplete_document_error_handler(request, error):
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": (
+                "This document is not ready yet. "
+                "Please retry the upload."
+            )
+        },
+    )
+
+
 class ConversationTurn(BaseModel):
     question: str
     answer: str
 
 
 class AskRequest(BaseModel):
-    document_id: str
+    document_id: UUID
     question: str
     history: list[ConversationTurn] = Field(
         default_factory=list
     )
+
+    @field_validator("question")
+    @classmethod
+    def question_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Question must not be empty")
+
+        return value
+
+
+async def read_pdf_pages(file: UploadFile):
+    if file.content_type != "application/pdf":
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported.",
+        )
+
+    file_bytes = await file.read(MAX_PDF_UPLOAD_BYTES + 1)
+
+    if len(file_bytes) > MAX_PDF_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "The PDF is too large. "
+                f"The maximum upload size is {MAX_PDF_UPLOAD_BYTES} bytes."
+            ),
+        )
+
+    if not has_pdf_signature(file_bytes):
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file is not a valid PDF.",
+        )
+
+    try:
+        pages = extract_pdf_text(file_bytes)
+    except Exception as error:
+        raise HTTPException(
+            status_code=400,
+            detail="The PDF could not be read. It may be damaged or invalid.",
+        ) from error
+
+    if len(pages) > MAX_PDF_PAGES:
+        page_label = "page" if MAX_PDF_PAGES == 1 else "pages"
+
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "The PDF has too many pages. "
+                f"The maximum is {MAX_PDF_PAGES} {page_label}."
+            ),
+        )
+
+    return file_bytes, pages
+
+
+def require_completed_document(document_id: UUID):
+    document = get_document(document_id)
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found.",
+        )
+
+    if document["ingestion_status"] != "completed":
+        raise HTTPException(
+            status_code=409,
+            detail="This document is not ready for questions.",
+        )
+
+    return document
+
+
+def validate_question(question: str) -> str:
+    if not question.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Question must not be empty.",
+        )
+
+    return question
 
 
 @app.get("/")
@@ -73,35 +227,22 @@ def database_health():
 async def upload_document(
     file: UploadFile = File(...),
 ):
-    if file.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported",
-        )
+    _, pages = await read_pdf_pages(file)
+    full_text = "\n".join(page["text"] for page in pages)
 
-    file_bytes = await file.read()
-
-    pdf_info = extract_pdf_info(
-        file_bytes=file_bytes,
-        filename=file.filename,
-    )
-
-    return pdf_info
+    return {
+        "filename": file.filename,
+        "pages": len(pages),
+        "characters": len(full_text),
+        "preview": full_text[:500],
+    }
 
 
 @app.post("/documents/chunks")
 async def preview_chunks(
     file: UploadFile = File(...),
 ):
-    if file.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported",
-        )
-
-    file_bytes = await file.read()
-
-    pages = extract_pdf_text(file_bytes)
+    _, pages = await read_pdf_pages(file)
 
     chunks = chunk_pages(pages)
 
@@ -116,16 +257,7 @@ async def preview_chunks(
 async def ingest_document(
     file: UploadFile = File(...),
 ):
-    if file.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported",
-        )
-
-    file_bytes = await file.read()
-
-    # Extract text page-by-page
-    pages = extract_pdf_text(file_bytes)
+    file_bytes, pages = await read_pdf_pages(file)
 
     # IMPORTANT:
     # Keep page metadata while creating chunks
@@ -194,15 +326,8 @@ async def test_semantic_search(
     file: UploadFile = File(...),
     question: str = "What experience does this person have with forecasting?",
 ):
-    if file.content_type != "application/pdf":
-        raise HTTPException(
-            status_code=400,
-            detail="Only PDF files are supported",
-        )
-
-    file_bytes = await file.read()
-
-    pages = extract_pdf_text(file_bytes)
+    validate_question(question)
+    _, pages = await read_pdf_pages(file)
 
     full_text = "\n".join(
         page["text"]
@@ -238,19 +363,22 @@ async def test_semantic_search(
 
 @app.post("/search")
 async def search_documents(
-    document_id: str,
-    question: str,
+    document_id: UUID,
+    question: str = Query(...),
 ):
+    validate_question(question)
+    require_completed_document(document_id)
+
     query_embedding = create_embedding(question)
 
     results = search_similar_chunks(
         query_embedding=query_embedding,
-        document_id=document_id,
+        document_id=str(document_id),
         limit=3,
     )
 
     return {
-        "document_id": document_id,
+        "document_id": str(document_id),
         "question": question,
         "results": results,
     }
@@ -258,6 +386,8 @@ async def search_documents(
 
 @app.post("/ask")
 def ask_document(request: AskRequest):
+    require_completed_document(request.document_id)
+
     conversation_history = [
         {
             "question": turn.question,
@@ -277,7 +407,7 @@ def ask_document(request: AskRequest):
 
     retrieved_chunks = search_similar_chunks(
         query_embedding=question_embedding,
-        document_id=request.document_id,
+        document_id=str(request.document_id),
         limit=3,
     )
 
@@ -288,7 +418,7 @@ def ask_document(request: AskRequest):
     )
 
     return {
-        "document_id": request.document_id,
+        "document_id": str(request.document_id),
         "question": request.question,
         "answer": answer,
         "rewritten_query": rewritten_query,
