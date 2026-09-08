@@ -27,6 +27,78 @@ chunk tables, fixes embeddings at 1536 dimensions, and installs uniqueness,
 foreign-key, vector, and full-text-search indexes. The database user applying
 the migration must be permitted to create extensions.
 
+### Upgrading the confirmed legacy Supabase schema
+
+Do not apply migration 001 to a database where `documents` and
+`document_chunks` already exist. After taking a database backup and running the
+documented preflight checks, apply only the additive legacy upgrade:
+
+```bash
+psql "$DATABASE_URL" \
+  -v ON_ERROR_STOP=1 \
+  -f backend/migrations/002_upgrade_legacy_schema.sql
+```
+
+Migration 002 uses a 5-second `lock_timeout`: if active traffic prevents it
+from acquiring its write-blocking table lock promptly, it fails instead of
+waiting indefinitely. Each statement has a 15-minute `statement_timeout`.
+Schedule it during a quiet period. It preserves all document and chunk content:
+documents with chunks are marked `completed`, documents without chunks are
+marked `failed`, and only the new ingestion metadata is backfilled.
+
+The HNSW and full-text indexes are deliberately built inside the transaction
+while writes are locked, preserving all-or-nothing migration behavior. On a
+large chunk table, either build can approach the statement timeout and blocks
+writes until it finishes or the transaction rolls back. Measure table size and
+index-build time before applying; increase the bounded statement timeout if
+needed. Building indexes with `CREATE INDEX CONCURRENTLY` would reduce write
+blocking, but PostgreSQL does not allow that command inside this transaction and
+would require a separately managed, non-atomic migration.
+
+Verify the result with read-only catalog queries:
+
+```sql
+SELECT table_name, column_name, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name IN ('documents', 'document_chunks')
+  AND column_name IN ('ingestion_status', 'completed_at')
+ORDER BY table_name, column_name;
+
+SELECT conrelid::regclass AS table_name, conname,
+       pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid IN ('public.documents'::regclass,
+                   'public.document_chunks'::regclass)
+ORDER BY table_name, conname;
+
+SELECT tablename, indexname, indexdef
+FROM pg_indexes
+WHERE schemaname = 'public'
+  AND tablename IN ('documents', 'document_chunks')
+ORDER BY tablename, indexname;
+
+SELECT format_type(atttypid, atttypmod) AS embedding_type
+FROM pg_attribute
+WHERE attrelid = 'public.document_chunks'::regclass
+  AND attname = 'embedding'
+  AND NOT attisdropped;
+
+SELECT ingestion_status, count(*)
+FROM documents
+GROUP BY ingestion_status
+ORDER BY ingestion_status;
+```
+
+If migration 002 fails before `COMMIT`, PostgreSQL rolls back the complete
+transaction automatically. After a successful commit, prefer restoring the
+pre-migration backup if rollback is necessary. A manual schema rollback may
+drop the three new indexes, the six new constraints, and finally the two new
+columns, but dropping the columns permanently removes their status metadata.
+It does not restore application compatibility by itself, so roll back the
+application and schema together. Never remove constraints until the application
+has stopped relying on them.
+
 ## Backend
 
 From the repository root:
