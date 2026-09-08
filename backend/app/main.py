@@ -1,5 +1,7 @@
 import hashlib
+import logging
 import os
+import traceback
 from uuid import UUID
 
 import psycopg
@@ -30,6 +32,32 @@ from app.services.database_service import (
 from app.services.rag_service import generate_answer
 from fastapi.middleware.cors import CORSMiddleware
 from app.services.query_rewrite_service import rewrite_query
+
+
+logger = logging.getLogger("uvicorn.error")
+
+
+def log_external_failure(service: str, error: Exception):
+    """Log a useful traceback without logging exception text or local values."""
+    frames = traceback.extract_tb(error.__traceback__)
+    sanitized_traceback = "\n".join(
+        (
+            f'  File "{frame.filename}", line {frame.lineno}, '
+            f"in {frame.name}"
+        )
+        for frame in frames
+    )
+
+    if not sanitized_traceback:
+        sanitized_traceback = "  <no traceback available>"
+
+    logger.error(
+        "%s failure (exception_type=%s)\n"
+        "Traceback (most recent call last):\n%s",
+        service,
+        type(error).__name__,
+        sanitized_traceback,
+    )
 
 
 def positive_int_setting(name: str, default: int) -> int:
@@ -74,6 +102,8 @@ app.add_middleware(
 @app.exception_handler(DatabaseConfigurationError)
 @app.exception_handler(psycopg.Error)
 async def database_error_handler(request, error):
+    log_external_failure("Database", error)
+
     return JSONResponse(
         status_code=503,
         content={
@@ -87,6 +117,8 @@ async def database_error_handler(request, error):
 
 @app.exception_handler(OpenAIError)
 async def openai_error_handler(request, error):
+    log_external_failure("OpenAI", error)
+
     return JSONResponse(
         status_code=502,
         content={

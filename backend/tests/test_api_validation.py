@@ -1,3 +1,4 @@
+import logging
 import os
 from uuid import UUID
 
@@ -172,7 +173,10 @@ def test_page_limit_returns_413(monkeypatch):
     assert "maximum is 1 page" in response.json()["detail"]
 
 
-def test_database_error_does_not_expose_details(monkeypatch):
+def test_database_error_is_logged_without_exposing_details(
+    monkeypatch,
+    caplog,
+):
     monkeypatch.setattr(
         main,
         "get_document",
@@ -181,10 +185,11 @@ def test_database_error_does_not_expose_details(monkeypatch):
         ),
     )
 
-    response = client.post(
-        "/ask",
-        json={"document_id": DOCUMENT_ID, "question": "What is this?"},
-    )
+    with caplog.at_level(logging.ERROR, logger="uvicorn.error"):
+        response = client.post(
+            "/ask",
+            json={"document_id": DOCUMENT_ID, "question": "What is this?"},
+        )
 
     assert response.status_code == 503
     assert "do-not-expose" not in response.text
@@ -193,9 +198,18 @@ def test_database_error_does_not_expose_details(monkeypatch):
             "The document service is temporarily unavailable. Please try again."
         )
     }
+    assert "Database failure" in caplog.text
+    assert "exception_type=OperationalError" in caplog.text
+    assert "Traceback (most recent call last)" in caplog.text
+    assert "app/main.py" in caplog.text
+    assert "tests/test_api_validation.py" in caplog.text
+    assert "do-not-expose" not in caplog.text
 
 
-def test_openai_error_does_not_expose_details(monkeypatch):
+def test_openai_error_is_logged_without_exposing_details(
+    monkeypatch,
+    caplog,
+):
     monkeypatch.setattr(main, "get_document", lambda document_id: completed_document())
     monkeypatch.setattr(
         main,
@@ -203,16 +217,23 @@ def test_openai_error_does_not_expose_details(monkeypatch):
         lambda text: (_ for _ in ()).throw(OpenAIError("key=do-not-expose")),
     )
 
-    response = client.post(
-        "/ask",
-        json={"document_id": DOCUMENT_ID, "question": "What is this?"},
-    )
+    with caplog.at_level(logging.ERROR, logger="uvicorn.error"):
+        response = client.post(
+            "/ask",
+            json={"document_id": DOCUMENT_ID, "question": "What is this?"},
+        )
 
     assert response.status_code == 502
     assert "do-not-expose" not in response.text
     assert response.json() == {
         "detail": "The AI service is temporarily unavailable. Please try again."
     }
+    assert "OpenAI failure" in caplog.text
+    assert "exception_type=OpenAIError" in caplog.text
+    assert "Traceback (most recent call last)" in caplog.text
+    assert "app/main.py" in caplog.text
+    assert "tests/test_api_validation.py" in caplog.text
+    assert "do-not-expose" not in caplog.text
 
 
 def test_successful_ask_preserves_response_shape_and_uses_uuid(monkeypatch):
