@@ -21,6 +21,10 @@ export default function Home() {
 
   const [asking, setAsking] = useState(false);
 
+  const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
+
+  const [mobileDocumentsOpen, setMobileDocumentsOpen] = useState(false);
+
   const [debugMode, setDebugMode] = useState(false);
 
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -58,6 +62,7 @@ export default function Home() {
 
     try {
       setAsking(true);
+      setPendingQuestion(currentQuestion);
       setQuestionError(null);
       setQuestion("");
 
@@ -85,12 +90,15 @@ export default function Home() {
           : "Could not answer the question. Please try again.",
       );
     } finally {
+      setPendingQuestion(null);
       setAsking(false);
     }
   }
 
   return (
     <AppShell
+      mobileOpen={mobileDocumentsOpen}
+      onMobileOpenChange={setMobileDocumentsOpen}
       sidebar={
         <DocumentSidebar
           document={document}
@@ -112,6 +120,16 @@ export default function Home() {
         onDebugToggle={() => setDebugMode((current) => !current)}
         onQuestionChange={setQuestion}
         onAsk={handleAsk}
+        pendingQuestion={pendingQuestion}
+        onOpenDocuments={() => {
+          if (window.matchMedia("(max-width: 850px)").matches) {
+            setMobileDocumentsOpen(true);
+          } else {
+            window.document
+              .getElementById("docmind-pdf-upload")
+              ?.click();
+          }
+        }}
       />
     </AppShell>
   );

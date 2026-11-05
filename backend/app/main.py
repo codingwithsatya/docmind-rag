@@ -92,6 +92,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://ancient-bat-j4gx9gr4vjjf574j-8000.app.github.dev",
     ],
     allow_credentials=True,
     allow_methods=["*"],

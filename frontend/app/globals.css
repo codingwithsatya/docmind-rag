@@ -147,6 +147,38 @@ body {
   font-size: 11px;
 }
 
+.upload-spinner {
+  width: 23px;
+  height: 23px;
+  display: block;
+
+  border: 3px solid rgba(188, 181, 255, 0.25);
+  border-top-color: #bcb5ff;
+  border-radius: 50%;
+
+  animation: uploadSpin 0.8s linear infinite;
+}
+
+.upload-dropzone[aria-busy="true"] {
+  cursor: progress;
+  border-color: #7767ff;
+  background: rgba(102, 84, 255, 0.1);
+}
+
+@keyframes uploadSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-spinner {
+    animation: none;
+    border-color: #bcb5ff;
+    border-right-color: transparent;
+  }
+}
+
 .inline-error {
   border: 1px solid #efc7ca;
   border-radius: 10px;
@@ -445,6 +477,21 @@ body {
   line-height: 1.7;
 }
 
+.hero-upload-hint {
+  font: inherit;
+  cursor: pointer;
+}
+
+.hero-upload-hint:hover {
+  border-color: #bcb5ff;
+  color: #6253df;
+}
+
+.hero-upload-hint:focus-visible {
+  outline: 2px solid #6253df;
+  outline-offset: 3px;
+}
+
 /* =========================
    SUGGESTIONS
 ========================= */
@@ -640,6 +687,43 @@ body {
   font-size: 9px;
 }
 
+.source-view-toggle {
+  display: flex;
+  gap: 6px;
+  margin-top: 18px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f1f2f7;
+}
+
+.source-view-toggle button {
+  flex: 1;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #777c8f;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.source-view-toggle button.active {
+  background: #ffffff;
+  color: #6253df;
+  box-shadow: 0 1px 5px rgba(20, 24, 40, 0.08);
+}
+
+.source-view-toggle button:focus-visible {
+  outline: 2px solid #6253df;
+  outline-offset: 2px;
+}
+
+.source-drawer-content--readable {
+  white-space: normal;
+  line-height: 1.85;
+}
+
 /* =========================
    COMPOSER
 ========================= */
@@ -825,6 +909,11 @@ body {
   box-shadow: -14px 0 40px rgba(20, 24, 40, 0.15);
 
   animation: sourceDrawerIn 0.22s ease-out;
+
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .source-drawer-header {
@@ -883,6 +972,9 @@ body {
   line-height: 1.75;
 
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  flex-shrink: 0;
+  tab-size: 4;
 }
 
 .source-drawer-meta {
@@ -1032,5 +1124,161 @@ body {
 
   .hero h1 {
     font-size: 36px;
+  }
+}
+
+@media (max-width: 600px) {
+  .source-drawer {
+    width: 100vw;
+    padding: 20px 16px;
+  }
+
+  .source-drawer-content {
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+}
+
+/* Mobile document navigation */
+
+.mobile-toolbar,
+.mobile-sidebar-backdrop,
+.mobile-sidebar-close {
+  display: none;
+}
+
+@media (max-width: 850px) {
+  .app-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+  }
+
+  .mobile-toolbar {
+    display: flex;
+    height: 54px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: #171a2c;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .mobile-documents-button {
+    border: 1px solid #444968;
+    border-radius: 9px;
+    padding: 9px 12px;
+    background: #292d48;
+    color: #ffffff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .mobile-documents-button:focus-visible,
+  .mobile-sidebar-close:focus-visible {
+    outline: 2px solid #bcb5ff;
+    outline-offset: 2px;
+  }
+
+  .app-sidebar {
+    display: block;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 31;
+    width: min(310px, 85vw);
+    overflow-y: auto;
+    visibility: hidden;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease, visibility 0.2s;
+  }
+
+  .app-sidebar--open {
+    visibility: visible;
+    transform: translateX(0);
+  }
+
+  .mobile-sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    border: 0;
+    background: rgba(15, 18, 32, 0.55);
+    cursor: pointer;
+  }
+
+  .mobile-sidebar-close {
+    display: grid;
+    position: fixed;
+    top: 14px;
+    left: min(260px, calc(85vw - 50px));
+    z-index: 32;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid #555b7a;
+    border-radius: 9px;
+    background: #292d48;
+    color: #ffffff;
+    cursor: pointer;
+  }
+
+  .app-main {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .chat-panel {
+    height: calc(100dvh - 54px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-sidebar {
+    transition: none;
+  }
+}
+
+/* Mobile landing screen: prevent unnecessary scrolling */
+
+@media (max-width: 850px) {
+  .chat-panel {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-height: 0;
+    height: calc(100dvh - 54px);
+  }
+
+  .chat-content {
+    min-height: 0;
+  }
+
+  /* Applies only while the empty-state hero is displayed */
+  .chat-content:has(.hero) {
+    overflow-y: hidden;
+    padding: 16px 18px;
+  }
+
+  .chat-content:has(.hero) .hero {
+    height: 100%;
+    min-height: 0;
+    margin: 0 auto;
+    justify-content: center;
+  }
+}
+
+/* Short screens can scroll rather than clipping important controls */
+@media (max-width: 850px) and (max-height: 600px) {
+  .chat-content:has(.hero) {
+    overflow-y: auto;
+  }
+
+  .chat-content:has(.hero) .hero {
+    height: auto;
+    min-height: 100%;
   }
 }

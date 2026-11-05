@@ -20,7 +20,7 @@ export default function UploadDropzone({
   const [dragging, setDragging] = useState(false);
 
   function handleFile(file?: File) {
-    if (!file) {
+    if (!file || uploading) {
       return;
     }
 
@@ -51,9 +51,14 @@ export default function UploadDropzone({
 
           handleFile(event.dataTransfer.files?.[0]);
         }}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!uploading) {
+            inputRef.current?.click();
+          }
+        }}
       >
         <input
+          id="docmind-pdf-upload"
           ref={inputRef}
           type="file"
           accept="application/pdf"
@@ -62,15 +67,26 @@ export default function UploadDropzone({
             handleFile(event.target.files?.[0]);
             event.target.value = "";
           }}
+          disabled={uploading}
         />
 
-        <div className="upload-icon">↑</div>
+        <div className="upload-icon">
+          {uploading ? (
+            <span className="upload-spinner" aria-hidden="true" />
+          ) : (
+            <span aria-hidden="true">↑</span>
+          )}
+        </div>
 
         <div className="upload-title" role="status" aria-live="polite">
           {uploading ? "Indexing document..." : "Upload PDF"}
         </div>
 
-        <div className="upload-subtitle">Drag & drop or click to browse</div>
+        <div className="upload-subtitle">
+          {uploading
+            ? "Preparing your PDF for AI-powered search"
+            : "Drag & drop or click to browse"}
+        </div>
       </div>
 
       {error && (

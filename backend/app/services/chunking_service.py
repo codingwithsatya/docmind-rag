@@ -1,10 +1,30 @@
+import re
+
 def is_heading(paragraph: str) -> bool:
     text = paragraph.strip()
 
-    if not text:
+    if not text or len(text) > 80:
         return False
 
-    if len(text) > 80:
+    # Monetary values and numeric dates are data, not headings.
+    if re.fullmatch(r"\$[\d,]+(?:\.\d{2})?", text):
+        return False
+
+    if re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", text):
+        return False
+
+    # Common invoice labels should remain associated
+    # with their corresponding values.
+    invoice_labels = {
+        "amount due",
+        "payment due date",
+        "due date",
+        "total amount due",
+        "account number",
+        "billing period",
+    }
+
+    if text.lower() in invoice_labels:
         return False
 
     known_headings = {
@@ -16,17 +36,7 @@ def is_heading(paragraph: str) -> bool:
         "the squeeze",
     }
 
-    if text.lower() in known_headings:
-        return True
-
-    if (
-        len(text.split()) <= 8
-        and not text.endswith((".", ",", ";", ":"))
-        and not text.startswith("-")
-    ):
-        return True
-
-    return False
+    return text.lower() in known_headings
 
 
 def chunk_text(

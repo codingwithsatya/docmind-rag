@@ -170,3 +170,38 @@ inserts, and the transition to `completed` occur in one transaction. A failure
 rolls the transaction back, so an incomplete upload cannot later be returned as
 an indexed duplicate. Concurrent uploads of the same file converge on the same
 completed document.
+
+## Product direction: Multi-document knowledge assistant
+
+DocMind-RAG is evolving from single-document question answering into
+a persistent, multi-document knowledge assistant.
+
+### Verified functionality
+- PDF ingestion and SHA-256 exact-file deduplication
+- Chunk storage and OpenAI embeddings in PostgreSQL/pgvector
+- Document-scoped retrieval and grounded answers with page sources
+- Next.js upload, chat, and source inspection
+- Same-origin API proxy for GitHub Codespaces development
+
+### Planned functionality
+- List and select previously indexed documents
+- Ask questions without selecting a document
+- Automatically discover relevant documents
+- Compare information across multiple documents
+- Return document-specific evidence and citations
+- Distinguish documents with identical filenames using metadata
+- Enforce document ownership and authorization
+- Improve mobile upload and source accessibility
+
+### Intended user experience
+Users upload documents once. DocMind retains their searchable indexes.
+Questions search the user's authorized document library by default.
+Optional document filters restrict the search scope.
+
+Comparisons retrieve evidence from each relevant document, validate
+the retrieved facts, and calculate differences where supported.
+
+The current API only supports one document_id per question.
+Multi-document retrieval is not yet implemented.
+
+See docs/ARCHITECTURE.md for the proposed architecture and rollout plan.

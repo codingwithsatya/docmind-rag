@@ -346,3 +346,85 @@ def search_chunks_by_keyword(
         }
         for row in rows
     ]
+
+def reindex_document_chunks(
+    document_id: str,
+    file_hash: str,
+    chunks: list[dict],
+) -> int:
+    """Atomically replace chunks for an existing completed document."""
+
+    if not chunks:
+        raise ValueError("Replacement chunks cannot be empty")
+
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            # Lock the document to serialize competing reindex requests.
+            cursor.execute(
+                """
+                SELECT id, file_hash, ingestion_status
+                FROM documents
+                WHERE id = %s
+                FOR UPDATE;
+                """,
+                (document_id,),
+            )
+
+            document = cursor.fetchone()
+
+            if document is None:
+                raise ValueError("Document not found")
+
+            _, stored_hash, status = document
+
+            if stored_hash != file_hash:
+                raise ValueError("Document hash mismatch")
+
+            if status != "completed":
+                raise IncompleteDocumentError(
+                    "Only completed documents can be reindexed"
+                )
+
+            # These operations remain uncommitted until all succeed.
+            cursor.execute(
+                """
+                DELETE FROM document_chunks
+                WHERE document_id = %s;
+                """,
+                (document_id,),
+            )
+
+            cursor.executemany(
+                """
+                INSERT INTO document_chunks (
+                    document_id,
+                    chunk_index,
+                    page_number,
+                    content,
+                    embedding
+                )
+                VALUES (%s, %s, %s, %s, %s);
+                """,
+                [
+                    (
+                        document_id,
+                        chunk["chunk_index"],
+                        chunk["page_number"],
+                        chunk["content"],
+                        chunk["embedding"],
+                    )
+                    for chunk in chunks
+                ],
+            )
+
+        connection.commit()
+        return len(chunks)
+
+    except Exception:
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()

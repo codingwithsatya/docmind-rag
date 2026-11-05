@@ -16,6 +16,8 @@ type ChatPanelProps = {
   onDebugToggle: () => void;
   onQuestionChange: (value: string) => void;
   onAsk: () => void;
+  pendingQuestion: string | null;
+  onOpenDocuments: () => void;
 };
 
 const suggestions = [
@@ -36,6 +38,8 @@ export default function ChatPanel({
   onDebugToggle,
   onQuestionChange,
   onAsk,
+  pendingQuestion,
+  onOpenDocuments,
 }: ChatPanelProps) {
   return (
     <div className="chat-panel">
@@ -60,9 +64,8 @@ export default function ChatPanel({
 
           <button
             type="button"
-            className={`debug-button ${
-              debugMode ? "debug-button--active" : ""
-            }`}
+            className={`debug-button ${debugMode ? "debug-button--active" : ""
+              }`}
             onClick={onDebugToggle}
           >
             <span className="debug-status-dot" />
@@ -72,7 +75,7 @@ export default function ChatPanel({
       </header>
 
       <div className="chat-content">
-        {messages.length === 0 && (
+        {messages.length === 0 && !pendingQuestion && (
           <div className="hero">
             <div className="hero-orb">
               <span>✦</span>
@@ -113,15 +116,19 @@ export default function ChatPanel({
             )}
 
             {disabled && (
-              <div className="hero-upload-hint">
-                <span>↑</span>
+              <button
+                type="button"
+                className="hero-upload-hint"
+                onClick={onOpenDocuments}
+              >
+                <span aria-hidden="true">↑</span>
                 Upload a PDF to get started
-              </div>
+              </button>
             )}
           </div>
         )}
 
-        {messages.length > 0 && (
+        {(messages.length > 0 || pendingQuestion) && (
           <div className="conversation">
             {messages.map((message) => (
               <div key={message.id}>
@@ -136,6 +143,13 @@ export default function ChatPanel({
                 />
               </div>
             ))}
+
+            {pendingQuestion && (
+              <ChatMessage
+                role="user"
+                content={pendingQuestion}
+              />
+            )}
 
             {asking && (
               <div className="assistant-thinking" role="status" aria-live="polite">
